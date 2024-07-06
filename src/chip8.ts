@@ -1,4 +1,5 @@
-import { assertNibble, assertUint8, decode_$xkk, decode_$xy$, getAddress$NNN as decode_$nnn, getBit, getByte, getNibble } from "./instructionHelpers";
+import { assertNibble, assertUint8, decode_$xkk, decode_$xy$, getAddress$NNN as decodeAddress_$nnn, getBit, getByte, getNibble } from "./instructionHelpers";
+import { randInt } from "./utils";
 
 const MEMORY_SIZE = 4096;
 const PROGRAM_START = 0x200; // Most Chip-8 programs start at location 0x200 (512), but some begin at 0x600 (1536).
@@ -63,7 +64,7 @@ export class Chip8 {
         return instruction
     }
 
-    decodeAndExecute(instruction: number) {
+    async decodeAndExecute(instruction: number) {
         const highNibble = getNibble(instruction, 3)
         const lowNibble = getNibble(instruction, 0)
         if (instruction === 0x00E0) {
@@ -105,19 +106,39 @@ export class Chip8 {
         } else if (highNibble === 0x9) {
             this.skipNextVxNotEqualsVy(instruction)
         } else if (highNibble === 0xA) {
-            this.(instruction)
-        }
-
-
-
-
-
-        else {
-            throw new Error(`Unknown instruction: 0x${instruction.toString(16)}`)
+            this.setIImmediate(instruction)
+        } else if (highNibble === 0xB) {
+            this.jumpAddressPlusV0(instruction)
+        } else if (highNibble === 0xC) {
+            this.setVxRandom(instruction)
+        } else if (highNibble === 0xD) {
+            this.displaySprite(instruction)
+        } else if (highNibble === 0xE && lowNibble === 0xE) {
+            this.skipNextVxKeyPressed(instruction)
+        } else if (highNibble === 0xE && lowNibble === 0x1) {
+            this.skipNextVxKeyNotPressed(instruction)
+        } else if (highNibble === 0xF && getByte(instruction, 0) === 0x07) {
+            this.setVxDelayTimer(instruction)
+        } else if (highNibble === 0xF && getByte(instruction, 0) === 0x0A) {
+            await this.waitVxKeyPressed(instruction)
+        } else if (highNibble === 0xF && getByte(instruction, 0) === 0x15) {
+            this.setDelayTimerToVx(instruction)
+        } else if (highNibble === 0xF && getByte(instruction, 0) === 0x18) {
+            this.setSoundTimerToVx(instruction)
+        } else if (highNibble === 0xF && getByte(instruction, 0) === 0x1E) {
+            this.setItoIPlusVx(instruction)
+        } else if (highNibble === 0xF && getByte(instruction, 0) === 0x29) {
+            this.setIToSpriteAddressVx(instruction)
+        } else if (highNibble === 0xF && getByte(instruction, 0) === 0x33) {
+            this.storeBCD(instruction)
+        } else if (highNibble === 0xF && getByte(instruction, 0) === 0x55) {
+            this.storeV0toVxAtI(instruction)
+        } else if (highNibble === 0xF && getByte(instruction, 0) === 0x65) {
+            this.loadIntoRegisters(instruction)
+        } else {
+            throw new Chip8Error(`Unknown instruction: 0x${instruction.toString(16)}`, this, instruction)
         }
     }
-
-    // Instructions
 
     // 0nnn - SYS addr
     // Jump to a machine code routine at nnn.
@@ -146,7 +167,7 @@ export class Chip8 {
     // Jump to location nnn.
     // The interpreter sets the program counter to nnn.
     jumpToAddress(instruction: number) {
-        this.PC = decode_$nnn(instruction)
+        this.PC = decodeAddress_$nnn(instruction)
     }
 
     // 2nnn - CALL addr
@@ -158,7 +179,7 @@ export class Chip8 {
             throw new Chip8Error(`Stack overflow`, this, instruction)
         }
         this.stack[this.SP] = this.PC
-        this.PC = decode_$nnn(instruction)
+        this.PC = decodeAddress_$nnn(instruction)
     }
 
     // 3xkk - SE Vx, byte
@@ -315,92 +336,132 @@ export class Chip8 {
     // Set I = nnn.
     // The value of register I is set to nnn.
     setIImmediate(instruction: number) {
-        const value = decode_$nnn(instruction)
+        const nnn = decodeAddress_$nnn(instruction)
+        this.I = nnn
     }
-
 
     // Bnnn - JP V0, addr
     // Jump to location nnn + V0.
-
     // The program counter is set to nnn plus the value of V0.
-
+    jumpAddressPlusV0(instruction: number) {
+        const address = decodeAddress_$nnn(instruction)
+        this.PC = address + this.V[0]
+    }
 
     // Cxkk - RND Vx, byte
     // Set Vx = random byte AND kk.
-
-    // The interpreter generates a random number from 0 to 255, which is then ANDed with the value kk. The results are stored in Vx. See instruction 8xy2 for more information on AND.
-
+    // The interpreter generates a random number from 0 to 255, which is then ANDed with the value kk.
+    // The results are stored in Vx. See instruction 8xy2 for more information on AND.
+    setVxRandom(instruction: number) {
+        const { x, kk } = decode_$xkk(instruction)
+        this.V[x] = randInt(0, 255) & kk
+    }
 
     // Dxyn - DRW Vx, Vy, nibble
     // Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
-
-    // The interpreter reads n bytes from memory, starting at the address stored in I. These bytes are then displayed as sprites on screen at coordinates (Vx, Vy). Sprites are XORed onto the existing screen. If this causes any pixels to be erased, VF is set to 1, otherwise it is set to 0. If the sprite is positioned so part of it is outside the coordinates of the display, it wraps around to the opposite side of the screen. See instruction 8xy3 for more information on XOR, and section 2.4, Display, for more information on the Chip-8 screen and sprites.
-
+    // The interpreter reads n bytes from memory, starting at the address stored in I.
+    // These bytes are then displayed as sprites on screen at coordinates (Vx, Vy). Sprites are XORed onto the existing screen.
+    // If this causes any pixels to be erased, VF is set to 1, otherwise it is set to 0.
+    // If the sprite is positioned so part of it is outside the coordinates of the display, it wraps around to the opposite side of the screen.
+    displaySprite(instruction: number) {
+        throw new Error("Not Implemented - sprites")
+    }
 
     // Ex9E - SKP Vx
     // Skip next instruction if key with the value of Vx is pressed.
-
     // Checks the keyboard, and if the key corresponding to the value of Vx is currently in the down position, PC is increased by 2.
-
+    skipNextVxKeyPressed(instruction: number) {
+        throw new Error("Not Implemented - keyboard")
+    }
 
     // ExA1 - SKNP Vx
     // Skip next instruction if key with the value of Vx is not pressed.
-
     // Checks the keyboard, and if the key corresponding to the value of Vx is currently in the up position, PC is increased by 2.
-
+    skipNextVxKeyNotPressed(instruction: number) {
+        throw new Error("Not Implemented - keyboard")
+    }
 
     // Fx07 - LD Vx, DT
     // Set Vx = delay timer value.
-
     // The value of DT is placed into Vx.
-
+    setVxDelayTimer(instruction: number) {
+        const { x } = decode_$xy$(instruction)
+        this.V[x] = this.delayTimer
+    }
 
     // Fx0A - LD Vx, K
     // Wait for a key press, store the value of the key in Vx.
-
     // All execution stops until a key is pressed, then the value of that key is stored in Vx.
-
+    async waitVxKeyPressed(instruction: number) {
+        throw new Error("Not Implemented")
+    }
 
     // Fx15 - LD DT, Vx
     // Set delay timer = Vx.
-
     // DT is set equal to the value of Vx.
-
+    setDelayTimerToVx(instruction: number) {
+        const { x } = decode_$xy$(instruction)
+        this.delayTimer = this.V[x]
+    }
 
     // Fx18 - LD ST, Vx
     // Set sound timer = Vx.
-
     // ST is set equal to the value of Vx.
-
+    setSoundTimerToVx(instruction: number) {
+        const { x } = decode_$xy$(instruction)
+        this.soundTimer = this.V[x]
+    }
 
     // Fx1E - ADD I, Vx
     // Set I = I + Vx.
-
     // The values of I and Vx are added, and the results are stored in I.
-
+    setItoIPlusVx(instruction: number) {
+        const { x } = decode_$xy$(instruction)
+        this.I = (this.I + this.V[x]) & 0x0FFF
+    }
 
     // Fx29 - LD F, Vx
     // Set I = location of sprite for digit Vx.
-
-    // The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx. See section 2.4, Display, for more information on the Chip-8 hexadecimal font.
-
+    // The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx.
+    setIToSpriteAddressVx(instruction: number) {
+        const { x } = decode_$xy$(instruction)
+        // TODO: Currently sprites are in their own buffer... we probably should move these to main memory
+        this.I = x
+    }
 
     // Fx33 - LD B, Vx
     // Store BCD representation of Vx in memory locations I, I+1, and I+2.
-
-    // The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at location in I, the tens digit at location I+1, and the ones digit at location I+2.
-
+    // The interpreter takes the decimal value of Vx, and places the hundreds digit in memory at location in I,
+    // the tens digit at location I+1, and the ones digit at location I+2.
+    storeBCD(instruction: number) {
+        const { x } = decode_$xy$(instruction)
+        let value = this.V[x]
+        this.memory[this.I] = Math.floor(value / 100)
+        value = value % 100
+        this.memory[this.I + 1] = Math.floor(value / 10)
+        value = value % 10
+        this.memory[this.I + 2] = value
+    }
 
     // Fx55 - LD [I], Vx
     // Store registers V0 through Vx in memory starting at location I.
-
     // The interpreter copies the values of registers V0 through Vx into memory, starting at the address in I.
-
+    storeV0toVxAtI(instruction: number) {
+        const { x } = decode_$xy$(instruction)
+        for (let reg = 0; reg <= x; reg++) {
+            this.memory[this.I + reg] = this.V[reg]
+        }
+    }
 
     // Fx65 - LD Vx, [I]
     // Read registers V0 through Vx from memory starting at location I.
-
     // The interpreter reads values from memory starting at location I into registers V0 through Vx.
+    loadIntoRegisters(instruction: number) {
+        const { x } = decode_$xy$(instruction)
+        for (let reg = 0; reg <= x; reg++) {
+            this.V[reg] = this.memory[this.I + reg]
+        }
+    }
 }
 
 class Chip8Error extends Error {
@@ -409,7 +470,3 @@ class Chip8Error extends Error {
         this.name = "Chip8Error"
     }
 }
-function dcode_$xkk(instruction: number): { x: any; kk: any; } {
-    throw new Error("Function not implemented.");
-}
-
