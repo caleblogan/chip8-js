@@ -1,4 +1,4 @@
-import { assertNibble, assertUint8, getByte, getNibble } from "./instructionHelpers";
+import { assertNibble, assertUint8, decode_$xkk, decode_$xy$, getAddress$NNN as decode_$nnn, getBit, getByte, getNibble } from "./instructionHelpers";
 
 const MEMORY_SIZE = 4096;
 const PROGRAM_START = 0x200; // Most Chip-8 programs start at location 0x200 (512), but some begin at 0x600 (1536).
@@ -24,7 +24,7 @@ export class Chip8 {
     // The program counter (PC) should be 16-bit, and is used to store the currently executing address.
     PC = PROGRAM_START
     // The stack pointer (SP) can be 8-bit, it is used to point to the topmost level of the stack.
-    SP = 0
+    SP = -1
 
     // The stack is an array of 16 16-bit values, used to store the address that the interpreter shoud return to when finished with a subroutine.
     // Chip-8 allows for up to 16 levels of nested subroutines.
@@ -64,161 +64,259 @@ export class Chip8 {
     }
 
     decodeAndExecute(instruction: number) {
-        const highNibble = (instruction & 0xF000) >> 12
-        const lowNibble = (instruction & 0x000F)
-        if (highNibble === 0x7) {
-            console.log(`set Vx = Vx + kk`)
-            this.addVxByte((instruction & 0x0F00) >> 8, instruction & 0xFF)
+        const highNibble = getNibble(instruction, 3)
+        const lowNibble = getNibble(instruction, 0)
+        if (instruction === 0x00E0) {
+            this.clearDisplay()
+        } else if (instruction === 0x00EE) {
+            this.returnFromSubroutine()
+        } else if (highNibble === 0x1) {
+            this.jumpToAddress(instruction)
+        } else if (highNibble === 0x2) {
+            this.callSubroutine(instruction)
+        } else if (highNibble === 0x3) {
+            this.skipNextInstructionIfVxEqualsKK(instruction)
+        } else if (highNibble === 0x4) {
+            this.skipNextInstructionIfVxNotEqualsKK(instruction)
+        } else if (highNibble === 0x5) {
+            this.skipNextInstructionIfVxEqualsVy(instruction)
+        } else if (highNibble === 0x6) {
+            this.setVxByteImmediate(instruction)
+        } else if (highNibble === 0x7) {
+            this.addVxByteImmediate(instruction)
         } else if (highNibble === 0x8 && lowNibble === 0x0) {
-            console.log(`set Vx = Vy`)
+            this.setVxToVy(instruction)
         } else if (highNibble === 0x8 && lowNibble === 0x1) {
-            console.log(`8xy0 - LD Vx, Vy`)
-        } else {
+            this.bitwiseOrVxVy(instruction)
+        } else if (highNibble === 0x8 && lowNibble === 0x2) {
+            this.bitwiseAndVxVy(instruction)
+        } else if (highNibble === 0x8 && lowNibble === 0x3) {
+            this.bitwiseXorVxVy(instruction)
+        } else if (highNibble === 0x8 && lowNibble === 0x4) {
+            this.addVxVyCarry(instruction)
+        } else if (highNibble === 0x8 && lowNibble === 0x5) {
+            this.subVxVyCarry(instruction)
+        } else if (highNibble === 0x8 && lowNibble === 0x6) {
+            this.logicalShiftRight(instruction)
+        } else if (highNibble === 0x8 && lowNibble === 0x7) {
+            this.subVyVxCarry(instruction)
+        } else if (highNibble === 0x8 && lowNibble === 0xE) {
+            this.logicalShiftLeft(instruction)
+        } else if (highNibble === 0x9) {
+            this.skipNextVxNotEqualsVy(instruction)
+        } else if (highNibble === 0xA) {
+            this.(instruction)
+        }
+
+
+
+
+
+        else {
             throw new Error(`Unknown instruction: 0x${instruction.toString(16)}`)
         }
     }
 
     // Instructions
-    addVxByte(register: number, value: number) {
-        assertNibble(register)
-        assertUint8(value)
-        this.V[register] += value
-    }
+
     // 0nnn - SYS addr
     // Jump to a machine code routine at nnn.
     // This instruction is only used on the old computers on which Chip-8 was originally implemented. It is ignored by modern interpreters.
 
-
     // 00E0 - CLS
     // Clear the display.
-
+    clearDisplay() {
+        this.emulatorScreen.fill(0)
+    }
 
     // 00EE - RET
     // Return from a subroutine.
-
     // The interpreter sets the program counter to the address at the top of the stack, then subtracts 1 from the stack pointer.
+    returnFromSubroutine() {
+        // TODO: Not sure if SP should be -1 or 0 when empty
+        if (this.SP < 0) {
+            throw new Chip8Error(`Stack underflow`, this, 0x00EE)
+        }
+        this.PC = this.stack[this.SP]
+        this.SP--
+    }
 
 
     // 1nnn - JP addr
     // Jump to location nnn.
-
     // The interpreter sets the program counter to nnn.
-
+    jumpToAddress(instruction: number) {
+        this.PC = decode_$nnn(instruction)
+    }
 
     // 2nnn - CALL addr
     // Call subroutine at nnn.
-
     // The interpreter increments the stack pointer, then puts the current PC on the top of the stack. The PC is then set to nnn.
-
+    callSubroutine(instruction: number) {
+        this.SP++
+        if (this.SP >= this.stack.length) {
+            throw new Chip8Error(`Stack overflow`, this, instruction)
+        }
+        this.stack[this.SP] = this.PC
+        this.PC = decode_$nnn(instruction)
+    }
 
     // 3xkk - SE Vx, byte
     // Skip next instruction if Vx = kk.
-
     // The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
-
+    skipNextInstructionIfVxEqualsKK(instruction: number) {
+        const { x, kk } = decode_$xkk(instruction)
+        if (this.V[x] === kk) {
+            this.PC += 2
+        }
+    }
 
     // 4xkk - SNE Vx, byte
     // Skip next instruction if Vx != kk.
-
     // The interpreter compares register Vx to kk, and if they are not equal, increments the program counter by 2.
-
+    skipNextInstructionIfVxNotEqualsKK(instruction: number) {
+        const { x, kk } = decode_$xkk(instruction)
+        if (this.V[x] !== kk) {
+            this.PC += 2
+        }
+    }
 
     // 5xy0 - SE Vx, Vy
     // Skip next instruction if Vx = Vy.
-
     // The interpreter compares register Vx to register Vy, and if they are equal, increments the program counter by 2.
-
+    skipNextInstructionIfVxEqualsVy(instruction: number) {
+        const { x, y } = decode_$xy$(instruction)
+        if (this.V[x] === this.V[y]) {
+            this.PC += 2
+        }
+    }
 
     // 6xkk - LD Vx, byte
     // Set Vx = kk.
-
     // The interpreter puts the value kk into register Vx.
-
+    setVxByteImmediate(instruction: number) {
+        const { x, kk } = decode_$xkk(instruction)
+        this.V[x] = kk
+    }
 
     // 7xkk - ADD Vx, byte
     // Set Vx = Vx + kk.
-
     // Adds the value kk to the value of register Vx, then stores the result in Vx.
+    addVxByteImmediate(instruction: number) {
+        const { x, kk } = decode_$xkk(instruction)
+        this.V[x] += kk
+    }
 
     // 8xy0 - LD Vx, Vy
     // Set Vx = Vy.
     // Stores the value of register Vy in register Vx.
-    instructions = {
-        0x00E0: (_: number) => {
-            console.log(`CLS`)
-        }, // CLS
-        0x00EE: (_: number) => { console.log(`RET`) }, // RET
-        0x1: (inst: number) => { console.log(`JP addr ${null}`) },
-        0x3: (inst: number) => { console.log(`SE ${null}, ${null}`) },
-        0x80: (inst: number) => { console.log(`LD Vx, Vy`) },
-        0x81: (inst: number) => { console.log(`LD Vx, Vy`) },
-        0x82: (inst: number) => { console.log(`LD Vx, Vy`) },
-    } as const
-
-    skipVxEqualIMM_8XY0(instruction: number) {
-        const x = getNibble(instruction, 2)
-        const nn = getByte(instruction, 0)
-        console.log(`Skip next instruction if V${x} = ${nn}`)
+    setVxToVy(instruction: number) {
+        const { x, y } = decode_$xy$(instruction)
+        this.V[x] = this.V[y]
     }
 
     // 8xy1 - OR Vx, Vy
     // Set Vx = Vx OR Vy.
-
-    // Performs a bitwise OR on the values of Vx and Vy, then stores the result in Vx. A bitwise OR compares the corrseponding bits from two values, and if either bit is 1, then the same bit in the result is also 1. Otherwise, it is 0.
-
+    // Performs a bitwise OR on the values of Vx and Vy, then stores the result in Vx.
+    bitwiseOrVxVy(instruction: number) {
+        const { x, y } = decode_$xy$(instruction)
+        this.V[x] = this.V[x] | this.V[y]
+    }
 
     // 8xy2 - AND Vx, Vy
     // Set Vx = Vx AND Vy.
-
-    // Performs a bitwise AND on the values of Vx and Vy, then stores the result in Vx. A bitwise AND compares the corrseponding bits from two values, and if both bits are 1, then the same bit in the result is also 1. Otherwise, it is 0.
-
+    // Performs a bitwise AND on the values of Vx and Vy, then stores the result in Vx.
+    bitwiseAndVxVy(instruction: number) {
+        const { x, y } = decode_$xy$(instruction)
+        this.V[x] = this.V[x] & this.V[y]
+    }
 
     // 8xy3 - XOR Vx, Vy
     // Set Vx = Vx XOR Vy.
-
-    // Performs a bitwise exclusive OR on the values of Vx and Vy, then stores the result in Vx. An exclusive OR compares the corrseponding bits from two values, and if the bits are not both the same, then the corresponding bit in the result is set to 1. Otherwise, it is 0.
-
+    // Performs a bitwise exclusive OR on the values of Vx and Vy, then stores the result in Vx.
+    bitwiseXorVxVy(instruction: number) {
+        const { x, y } = decode_$xy$(instruction)
+        this.V[x] = this.V[x] ^ this.V[y]
+    }
 
     // 8xy4 - ADD Vx, Vy
     // Set Vx = Vx + Vy, set VF = carry.
-
-    // The values of Vx and Vy are added together. If the result is greater than 8 bits (i.e., > 255,) VF is set to 1, otherwise 0. Only the lowest 8 bits of the result are kept, and stored in Vx.
-
+    // The values of Vx and Vy are added together.
+    // If the result is greater than 8 bits (i.e., > 255,) VF is set to 1, otherwise 0.
+    // Only the lowest 8 bits of the result are kept, and stored in Vx.
+    addVxVyCarry(instruction: number) {
+        const { x, y } = decode_$xy$(instruction)
+        const sum = this.V[x] + this.V[y]
+        if (sum > 0xFF) {
+            this.V[0xF] = 1
+        } else {
+            this.V[0xF] = 0
+        }
+        this.V[x] = sum
+    }
 
     // 8xy5 - SUB Vx, Vy
     // Set Vx = Vx - Vy, set VF = NOT borrow.
-
-    // If Vx > Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
-
+    // Set vf to 0 if there is underflow
+    // If Vx >= Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
+    // TODO: possibly wrong - may be Vx > Vy then VF is set to 1; not sure if underflow resets
+    subVxVyCarry(instruction: number) {
+        const { x, y } = decode_$xy$(instruction)
+        if (this.V[x] >= this.V[y]) {
+            this.V[0xF] = 1
+        } else {
+            this.V[0xF] = 0
+        }
+        this.V[x] = this.V[x] - this.V[y]
+    }
 
     // 8xy6 - SHR Vx {, Vy}
     // Set Vx = Vx SHR 1.
-
     // If the least-significant bit of Vx is 1, then VF is set to 1, otherwise 0. Then Vx is divided by 2.
-
+    logicalShiftRight(instruction: number) {
+        const { x } = decode_$xy$(instruction)
+        this.V[0xF] = this.V[x] & 1
+        this.V[x] = this.V[x] >> 1
+    }
 
     // 8xy7 - SUBN Vx, Vy
     // Set Vx = Vy - Vx, set VF = NOT borrow.
-
-    // If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy, and the results stored in Vx.
-
+    // If Vy >= Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy, and the results stored in Vx.
+    subVyVxCarry(instruction: number) {
+        const { x, y } = decode_$xy$(instruction)
+        if (this.V[y] >= this.V[x]) {
+            this.V[0xF] = 1
+        } else {
+            this.V[0xF] = 0
+        }
+        this.V[x] = this.V[y] - this.V[x]
+    }
 
     // 8xyE - SHL Vx {, Vy}
     // Set Vx = Vx SHL 1.
-
     // If the most-significant bit of Vx is 1, then VF is set to 1, otherwise to 0. Then Vx is multiplied by 2.
-
+    logicalShiftLeft(instruction: number) {
+        const { x } = decode_$xy$(instruction)
+        this.V[0xF] = getBit(this.V[x], 7)
+        this.V[x] = this.V[x] << 1
+    }
 
     // 9xy0 - SNE Vx, Vy
     // Skip next instruction if Vx != Vy.
-
     // The values of Vx and Vy are compared, and if they are not equal, the program counter is increased by 2.
-
+    skipNextVxNotEqualsVy(instruction: number) {
+        const { x, y } = decode_$xy$(instruction)
+        if (this.V[x] != this.V[y]) {
+            this.PC += 2
+        }
+    }
 
     // Annn - LD I, addr
     // Set I = nnn.
-
     // The value of register I is set to nnn.
+    setIImmediate(instruction: number) {
+        const value = decode_$nnn(instruction)
+    }
 
 
     // Bnnn - JP V0, addr
@@ -303,6 +401,15 @@ export class Chip8 {
     // Read registers V0 through Vx from memory starting at location I.
 
     // The interpreter reads values from memory starting at location I into registers V0 through Vx.
-
-
 }
+
+class Chip8Error extends Error {
+    constructor(message: string, public chip8: Chip8, public instruction: number) {
+        super(message)
+        this.name = "Chip8Error"
+    }
+}
+function dcode_$xkk(instruction: number): { x: any; kk: any; } {
+    throw new Error("Function not implemented.");
+}
+
