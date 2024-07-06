@@ -1,10 +1,11 @@
-import { assertNibble, assertUint8, decode_$xkk, decode_$xy$, getAddress$NNN as decodeAddress_$nnn, getBit, getByte, getNibble } from "./instructionHelpers";
+import { Chip8Error } from "./errors";
+import { decode_$xkk, decode_$xy$, getAddress$NNN as decodeAddress_$nnn, getBit, getByte, getNibble } from "./instructionHelpers";
+import { EmulatorScreen } from "./screen";
 import { randInt } from "./utils";
 
 const MEMORY_SIZE = 4096;
 const PROGRAM_START = 0x200; // Most Chip-8 programs start at location 0x200 (512), but some begin at 0x600 (1536).
-const SCREEN_WIDTH = 64
-const SCREEN_HEIGHT = 32
+
 
 export class Chip8 {
     memory = new Uint8Array(MEMORY_SIZE)
@@ -40,7 +41,7 @@ export class Chip8 {
     // (0,0)	(63,0)
     // (0,31)	(63,31)
     // Size in bits
-    emulatorScreen = new Uint8Array((SCREEN_WIDTH * SCREEN_HEIGHT) / 8)
+    screen = new EmulatorScreen()
 
     // these should be stored in memory
     readonly spriteDefintions0ToF = new Uint8Array([0xF0, 0x90, 0x90, 0x90, 0xF0, 0x20, 0x60, 0x20, 0x20, 0x70, 0xF0, 0x10, 0xF0, 0x80, 0xF0, 0xF0, 0x10, 0xF0, 0x10, 0xF0, 0x90, 0x90, 0xF0, 0x10, 0x10, 0xF0, 0x80, 0xF0, 0x10, 0xF0, 0xF0, 0x80, 0xF0, 0x90, 0xF0, 0xF0, 0x10, 0x20, 0x40, 0x40, 0xF0, 0x90, 0xF0, 0x90, 0xF0, 0xF0, 0x90, 0xF0, 0x10, 0xF0, 0xF0, 0x90, 0xF0, 0x90, 0x90, 0xE0, 0x90, 0xE0, 0x90, 0xE0, 0xF0, 0x80, 0x80, 0x80, 0xF0, 0xE0, 0x90, 0x90, 0x90, 0xE0, 0xF0, 0x80, 0xF0, 0x80, 0xF0, 0xF0, 0x80, 0xF0, 0x80, 0x80,])
@@ -147,7 +148,7 @@ export class Chip8 {
     // 00E0 - CLS
     // Clear the display.
     clearDisplay() {
-        this.emulatorScreen.fill(0)
+        this.screen.clear()
     }
 
     // 00EE - RET
@@ -364,7 +365,16 @@ export class Chip8 {
     // If this causes any pixels to be erased, VF is set to 1, otherwise it is set to 0.
     // If the sprite is positioned so part of it is outside the coordinates of the display, it wraps around to the opposite side of the screen.
     displaySprite(instruction: number) {
-        throw new Error("Not Implemented - sprites")
+        const x = getNibble(instruction, 2)
+        const y = getNibble(instruction, 1)
+        const n = getNibble(instruction, 0)
+        for (let i = 0; i < n; i++) {
+            this.screen.drawByte(x, y + i, this.memory[this.I + i])
+        }
+        console.log(``)
+
+        // TODO: setting VF
+        // TODO: add wrap around
     }
 
     // Ex9E - SKP Vx
@@ -464,9 +474,4 @@ export class Chip8 {
     }
 }
 
-class Chip8Error extends Error {
-    constructor(message: string, public chip8: Chip8, public instruction: number) {
-        super(message)
-        this.name = "Chip8Error"
-    }
-}
+

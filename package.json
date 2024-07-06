@@ -4,11 +4,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "npx tsx watch src/main.ts"
+    "dev": "npx tsx watch src/main.ts",
+    "devNoWatch": "npx tsx src/main.ts"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/node": "^20.14.10",
     "tsx": "^4.16.2",
     "typescript": "^5.5.3"
   }
