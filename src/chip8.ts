@@ -5,6 +5,8 @@ import { randInt } from "./utils";
 
 const MEMORY_SIZE = 4096;
 const PROGRAM_START = 0x200; // Most Chip-8 programs start at location 0x200 (512), but some begin at 0x600 (1536).
+const FONT_START_ADDRESS = 0x0;
+const FONT_WIDTH = 0x5;
 
 
 export class Chip8 {
@@ -65,18 +67,22 @@ export class Chip8 {
 
     constructor(screen: EmulatorScreen) {
         this.screen = screen
-        console.log(`SPRITES LEN: ${this.fontset.length}`)
 
         if (this.fontset.length >= PROGRAM_START) {
             throw new Chip8Error("Default sprite definitions array is too large; trying to overwrite program memory", this, 0)
         }
         for (let i = 0; i < this.fontset.length; i++) {
-            this.memory[i] = this.fontset[i]
+            if (FONT_START_ADDRESS + i >= PROGRAM_START) {
+                throw new Chip8Error("TRYING to write font into program memory", this, 0)
+            }
+            this.memory[FONT_START_ADDRESS + i] = this.fontset[i]
         }
     }
 
     loadProgram(program: Uint8Array) {
-        // TODO: Check if program is too large
+        if (program.length + PROGRAM_START > this.memory.length) {
+            throw new Chip8Error(`Program is too large at ${program.length}`, this, 0)
+        }
         this.memory.set(program, PROGRAM_START)
     }
 
@@ -467,8 +473,7 @@ export class Chip8 {
     // The value of I is set to the location for the hexadecimal sprite corresponding to the value of Vx.
     setIToSpriteAddressVx(instruction: number) {
         const { x } = decode_$xy$(instruction)
-        // TODO: Currently sprites are in their own buffer... we probably should move these to main memory
-        this.I = x
+        this.I = FONT_START_ADDRESS + (this.V[x] * FONT_WIDTH)
     }
 
     // Fx33 - LD B, Vx

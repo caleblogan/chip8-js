@@ -11,8 +11,9 @@ const CYCLE_RATE = 1000 / 60
 async function main() {
     const screen = new EmulatorScreen()
     const chip8 = new Chip8(screen)
-    const file = await readROM("./roms/test_opcode.ch8")
-    // const file = await readROM("./roms/c8_test.c8")
+    // const file = await readROM("./roms/test_opcode.ch8")
+    const file = await readROM("./roms/c8_test.c8")
+    // const file = await readROM("./roms/IBM Logo.ch8")
     chip8.loadProgram(file)
 
     let lastUpdate = Date.now()
