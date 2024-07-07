@@ -26,7 +26,6 @@ export class EmulatorScreen {
         assertUint8(byte)
         let collision = false
 
-        // TODO: add wrap around
         for (let i = 7; i >= 0; i--) {
             const col = (x + 7 - i) % SCREEN_WIDTH
             const index = col + (y * SCREEN_WIDTH)
