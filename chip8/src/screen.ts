@@ -15,8 +15,6 @@ export class EmulatorScreen {
     }
 
     writeByteToBuffer(x: number, y: number, byte: number) {
-        // console.log(`x=${x} y=${y} byte=${byte}`)
-
         if (x < 0 || x >= SCREEN_WIDTH) {
             throw new Error(`invalid x when drawing; value should be between 0 and ${SCREEN_WIDTH}`)
         }
@@ -39,8 +37,8 @@ export class EmulatorScreen {
 
     draw() {
         console.clear()
+        const line = []
         for (let row = 0; row < SCREEN_HEIGHT; row++) {
-            const line = []
             for (let col = 0; col < SCREEN_WIDTH; col++) {
                 if (this.buffer[col + (row * SCREEN_WIDTH)]) {
                     line.push("*")
@@ -48,8 +46,9 @@ export class EmulatorScreen {
                     line.push(" ")
                 }
             }
-            console.log(line.join(""))
+            line.push("\n")
         }
+        console.log(line.join(""))
     }
 
 }

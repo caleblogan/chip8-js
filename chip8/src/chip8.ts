@@ -104,7 +104,7 @@ export class Chip8 {
         return instruction
     }
 
-    async decodeAndExecute(instruction: number) {
+    decodeAndExecute(instruction: number) {
         const highNibble = getNibble(instruction, 3)
         const lowNibble = getNibble(instruction, 0)
         if (instruction === 0x00E0) {
@@ -160,7 +160,7 @@ export class Chip8 {
         } else if (highNibble === 0xF && getByte(instruction, 0) === 0x07) {
             this.setVxDelayTimer(instruction)
         } else if (highNibble === 0xF && getByte(instruction, 0) === 0x0A) {
-            await this.waitVxKeyPressed(instruction)
+            this.waitVxKeyPressed(instruction)
         } else if (highNibble === 0xF && getByte(instruction, 0) === 0x15) {
             this.setDelayTimerToVx(instruction)
         } else if (highNibble === 0xF && getByte(instruction, 0) === 0x18) {
