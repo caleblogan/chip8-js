@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "composite": true, /* Enable constraints that allow a TypeScript project to be used with project references. */
-    // "declaration": true,
+    "declaration": true,
     "target": "es2017", /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */
     "module": "ESNext", /* Specify what module code is generated. */
     "rootDir": "./src", /* Specify the root folder within your source files. */
