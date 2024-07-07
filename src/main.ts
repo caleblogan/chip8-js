@@ -1,21 +1,32 @@
 import { Chip8 } from "./chip8";
 import fs from "fs"
+import { EmulatorScreen } from "./screen";
+
+/**
+ * input
+ */
+
+const CYCLE_RATE = 1000 / 60
 
 async function main() {
-    const chip8 = new Chip8()
-    // chip8.loadProgram(new Uint8Array([0x70, 0xFF, 0x61, 0x02]))
-    // const file = await readFile("./roms/IBM Logo.ch8")
-    const file = await readFile("./roms/test_opcode.ch8")
+    const screen = new EmulatorScreen()
+    const chip8 = new Chip8(screen)
+    const file = await readROM("./roms/test_opcode.ch8")
+    // const file = await readROM("./roms/c8_test.c8")
     chip8.loadProgram(file)
-    for (let i = 0; i < 1000; i++) {
-        chip8.cycle()
 
+    let lastUpdate = Date.now()
+    while (true) {
+        const dt = Date.now() - lastUpdate
+        if (dt >= CYCLE_RATE) {
+            chip8.cycle()
+            lastUpdate = Date.now()
+            screen.draw()
+        }
     }
-
-    console.log(`PC: ${chip8.PC} V0: ${chip8.V[0]} V1: ${chip8.V[1]}`)
 }
 
-async function readFile(path: string) {
+async function readROM(path: string) {
     const file = fs.readFileSync(path)
     const bytes = new Uint8Array(file)
     return bytes

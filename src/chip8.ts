@@ -41,12 +41,39 @@ export class Chip8 {
     // (0,0)	(63,0)
     // (0,31)	(63,31)
     // Size in bits
-    screen = new EmulatorScreen()
+    screen: EmulatorScreen
 
-    // these should be stored in memory
-    readonly spriteDefintions0ToF = new Uint8Array([0xF0, 0x90, 0x90, 0x90, 0xF0, 0x20, 0x60, 0x20, 0x20, 0x70, 0xF0, 0x10, 0xF0, 0x80, 0xF0, 0xF0, 0x10, 0xF0, 0x10, 0xF0, 0x90, 0x90, 0xF0, 0x10, 0x10, 0xF0, 0x80, 0xF0, 0x10, 0xF0, 0xF0, 0x80, 0xF0, 0x90, 0xF0, 0xF0, 0x10, 0x20, 0x40, 0x40, 0xF0, 0x90, 0xF0, 0x90, 0xF0, 0xF0, 0x90, 0xF0, 0x10, 0xF0, 0xF0, 0x90, 0xF0, 0x90, 0x90, 0xE0, 0x90, 0xE0, 0x90, 0xE0, 0xF0, 0x80, 0x80, 0x80, 0xF0, 0xE0, 0x90, 0x90, 0x90, 0xE0, 0xF0, 0x80, 0xF0, 0x80, 0xF0, 0xF0, 0x80, 0xF0, 0x80, 0x80,])
+    // these are stored in memory
+    readonly fontset = new Uint8Array([
+        0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+        0x20, 0x60, 0x20, 0x20, 0x70, // 1
+        0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+        0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+        0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+        0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+        0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+        0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+        0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+        0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+        0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+        0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+        0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+        0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+        0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+        0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+    ])
 
-    constructor() { }
+    constructor(screen: EmulatorScreen) {
+        this.screen = screen
+        console.log(`SPRITES LEN: ${this.fontset.length}`)
+
+        if (this.fontset.length >= PROGRAM_START) {
+            throw new Chip8Error("Default sprite definitions array is too large; trying to overwrite program memory", this, 0)
+        }
+        for (let i = 0; i < this.fontset.length; i++) {
+            this.memory[i] = this.fontset[i]
+        }
+    }
 
     loadProgram(program: Uint8Array) {
         // TODO: Check if program is too large
@@ -56,6 +83,12 @@ export class Chip8 {
     cycle() {
         const nextInstruction = this.fetch()
         this.decodeAndExecute(nextInstruction)
+        if (this.delayTimer > 0) {
+            this.delayTimer -= 1
+        }
+        if (this.soundTimer > 0) {
+            this.soundTimer -= 1
+        }
     }
 
     // Each instruction is two bytes. The most significant byte is stored at the current address, and the least significant byte at the next address.
@@ -148,7 +181,7 @@ export class Chip8 {
     // 00E0 - CLS
     // Clear the display.
     clearDisplay() {
-        this.screen.clear()
+        this.screen.clearBuffer()
     }
 
     // 00EE - RET
@@ -365,16 +398,15 @@ export class Chip8 {
     // If this causes any pixels to be erased, VF is set to 1, otherwise it is set to 0.
     // If the sprite is positioned so part of it is outside the coordinates of the display, it wraps around to the opposite side of the screen.
     displaySprite(instruction: number) {
-        const x = getNibble(instruction, 2)
-        const y = getNibble(instruction, 1)
+        const x = this.V[getNibble(instruction, 2)]
+        const y = this.V[getNibble(instruction, 1)]
         const n = getNibble(instruction, 0)
+        this.V[0xF] = 0
         for (let i = 0; i < n; i++) {
-            this.screen.drawByte(x, y + i, this.memory[this.I + i])
+            if (this.screen.writeByteToBuffer(x, y + i, this.memory[this.I + i])) {
+                this.V[0xF] = 1
+            }
         }
-        console.log(``)
-
-        // TODO: setting VF
-        // TODO: add wrap around
     }
 
     // Ex9E - SKP Vx
