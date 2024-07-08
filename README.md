@@ -11,6 +11,7 @@ The meat of the chip8 interpreter is in the chip8 directory.
 Required node and npm.
 
 #### chip8 lib
+Technically can run it in the console by running my with `npm run dev`, but no input handling works with console.
 - `cd chip8 &&`
 - `npm i && npx tsc` This should work. If not, install typescript globally and use `tsc`
 
