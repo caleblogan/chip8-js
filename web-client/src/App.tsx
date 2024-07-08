@@ -77,10 +77,15 @@ function App() {
   }
 
   return (
-    <div className="container">
+    <div className="container" style={{ width: 64 * PIXEL_WIDTH, height: 32 * PIXEL_WIDTH, margin: "0 auto" }}>
       <canvas id="screen" width={64 * PIXEL_WIDTH} height={32 * PIXEL_WIDTH} />
-      <p>Program: {selectedFileName}</p>
-      <input type="file" accept=".ch8,.c8" onChange={handleFile} />
+      <p style={{ margin: "2em 0 1em 0" }}>Running Program: {selectedFileName}</p>
+      <div>
+        <label>
+          Upload ROM:<br />
+          <input type="file" accept=".ch8,.c8" onChange={handleFile} style={{ margin: ".4em 0" }} />
+        </label>
+      </div>
     </div>
   )
 }
