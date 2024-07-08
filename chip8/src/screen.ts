@@ -35,7 +35,7 @@ export class EmulatorScreen {
         return collision
     }
 
-    draw() {
+    drawConsole() {
         console.clear()
         const line = []
         for (let row = 0; row < SCREEN_HEIGHT; row++) {

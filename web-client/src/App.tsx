@@ -1,10 +1,14 @@
 import { Chip8 } from "chip8-emulator/dest/chip8"
 import { EmulatorScreen } from "chip8-emulator/dest/screen"
+import "./App.css"
 
 /**
  * [*] setup client build
  * [*] load rom
  * [*] run in browser console
+ * [*] draw to screen
+ * [ ] input handling
+ * [ ] sound
  */
 
 const rom = new Uint8Array([
@@ -20,14 +24,40 @@ const CYCLE_RATE = 1000 / 10
 console.log("SETTING UP")
 setInterval(() => {
   chip.cycle()
-  screen.draw()
+  draw()
 }, CYCLE_RATE)
 
-function App() {
+function draw() {
+  const canvas = document.getElementById("screen") as HTMLCanvasElement | null;
+  if (canvas === null) {
+    console.warn("Canvas not found")
+    return
+  }
+  const ctx = canvas.getContext("2d");
+  if (ctx === null) {
+    console.warn("Context not found")
+    return
+  }
 
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  ctx.moveTo(0, 0);
+  ctx.beginPath();
+  for (let i = 0; i < screen.buffer.length; i++) {
+    ctx.fillStyle = screen.buffer[i] ? "#008f00" : "white"
+    const x = (i % 64) * pixelWidth
+    const y = Math.floor(i / 64) * pixelWidth
+    ctx.fillRect(x, y, pixelWidth, pixelWidth);
+  }
+  ctx.closePath();
+}
+
+const pixelWidth = 12
+function App() {
   return (
-    <>
-    </>
+    <div className="container">
+      <canvas id="screen" width={64 * pixelWidth} height={32 * pixelWidth} />
+    </div>
   )
 }
 

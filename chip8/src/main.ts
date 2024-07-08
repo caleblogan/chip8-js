@@ -22,7 +22,7 @@ export async function main() {
         if (dt >= CYCLE_RATE) {
             chip8.cycle()
             lastUpdate = Date.now()
-            screen.draw()
+            screen.drawConsole()
         }
     }
 }
