@@ -1,5 +1,4 @@
-import { Chip8Error } from "./errors";
-import { decode_$xkk, decode_$xy$, getAddress$NNN as decodeAddress_$nnn, getBit, getByte, getNibble } from "./instructionHelpers";
+import { Chip8Error } from "./errors"; import { decode_$xkk, decode_$xy$, getAddress$NNN as decodeAddress_$nnn, getBit, getByte, getNibble } from "./instructionHelpers";
 import { EmulatorScreen } from "./screen";
 import { randInt } from "./utils";
 
@@ -44,6 +43,7 @@ export class Chip8 {
     // (0,31)	(63,31)
     // Size in bits
     screen: EmulatorScreen
+    keyPressed: number | null = null
 
     // these are stored in memory
     readonly fontset = new Uint8Array([
@@ -419,14 +419,20 @@ export class Chip8 {
     // Skip next instruction if key with the value of Vx is pressed.
     // Checks the keyboard, and if the key corresponding to the value of Vx is currently in the down position, PC is increased by 2.
     skipNextVxKeyPressed(instruction: number) {
-        throw new Error("Not Implemented - keyboard")
+        const { x } = decode_$xy$(instruction)
+        if (this.V[x] === this.keyPressed) {
+            this.PC += 2
+        }
     }
 
     // ExA1 - SKNP Vx
     // Skip next instruction if key with the value of Vx is not pressed.
     // Checks the keyboard, and if the key corresponding to the value of Vx is currently in the up position, PC is increased by 2.
     skipNextVxKeyNotPressed(instruction: number) {
-        throw new Error("Not Implemented - keyboard")
+        const { x } = decode_$xy$(instruction)
+        if (this.V[x] !== this.keyPressed) {
+            this.PC += 2
+        }
     }
 
     // Fx07 - LD Vx, DT
@@ -441,7 +447,13 @@ export class Chip8 {
     // Wait for a key press, store the value of the key in Vx.
     // All execution stops until a key is pressed, then the value of that key is stored in Vx.
     async waitVxKeyPressed(instruction: number) {
-        throw new Error("Not Implemented")
+        const { x } = decode_$xy$(instruction)
+        if (this.keyPressed !== null) {
+            this.V[x] = this.keyPressed
+            // TODO: we may want to set keyPressed to null
+        } else {
+            this.PC -= 2 // repeat the instruction
+        }
     }
 
     // Fx15 - LD DT, Vx

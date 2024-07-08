@@ -9,30 +9,35 @@ import { useState } from "react"
  * [*] run in browser console
  * [*] draw to screen
  * [*] rom uploading
- * [ ] input handling
+ * [*] input handling
  * [ ] sound
  */
 
-const CYCLE_RATE = 1000 / 160
+const CYCLE_RATE = 1000 / 60
+// Due to the event loop, if we try to to only do one cycle per setInterval, the emulator will run too slow.
+// Input is way too slow to be usable.
+const INSTRUCTIONS_PER_INTERVAL = 100;
 const PIXEL_WIDTH = 12
-
-const rom = new Uint8Array([
+const DEFAULT_PALLETTE = {
+  background: "#996600",
+  foreground: "#FFCC00"
+} as const
+const DEFAULT_FILE_NAME = "ibm_logo.ch8"
+const DEFAULT_ROM = new Uint8Array([
   0x00, 0xE0, 0xA2, 0x2A, 0x60, 0x0C, 0x61, 0x08, 0xD0, 0x1F, 0x70, 0x09, 0xA2, 0x39, 0xD0, 0x1F, 0xA2, 0x48, 0x70, 0x08, 0xD0, 0x1F, 0x70, 0x04, 0xA2, 0x57, 0xD0, 0x1F, 0x70, 0x08, 0xA2, 0x66, 0xD0, 0x1F, 0x70, 0x08, 0xA2, 0x75, 0xD0, 0x1F, 0x12, 0x28, 0xFF, 0x00, 0xFF, 0x00, 0x3C, 0x00, 0x3C, 0x00, 0x3C, 0x00, 0x3C, 0x00, 0xFF, 0x00, 0xFF, 0xFF, 0x00, 0xFF, 0x00, 0x38, 0x00, 0x3F, 0x00, 0x3F, 0x00, 0x38, 0x00, 0xFF, 0x00, 0xFF, 0x80, 0x00, 0xE0, 0x00, 0xE0, 0x00, 0x80, 0x00, 0x80, 0x00, 0xE0, 0x00, 0xE0, 0x00, 0x80, 0xF8, 0x00, 0xFC, 0x00, 0x3E, 0x00, 0x3F, 0x00, 0x3B, 0x00, 0x39, 0x00, 0xF8, 0x00, 0xF8, 0x03, 0x00, 0x07, 0x00, 0x0F, 0x00, 0xBF, 0x00, 0xFB, 0x00, 0xF3, 0x00, 0xE3, 0x00, 0x43, 0xE0, 0x00, 0xE0, 0x00, 0x80, 0x00, 0x80, 0x00, 0x80, 0x00, 0x80, 0x00, 0xE0, 0x00, 0xE0
 ])
 
 let screen = new EmulatorScreen()
 let chip = new Chip8(screen)
-chip.loadProgram(rom)
+chip.loadProgram(DEFAULT_ROM)
 
 setInterval(() => {
-  chip.cycle()
-  draw(screen.buffer)
+  for (let i = 0; i < INSTRUCTIONS_PER_INTERVAL; i++) {
+    chip.cycle()
+    draw(screen.buffer)
+  }
 }, CYCLE_RATE)
 
-const DEFAULT_PALLETTE = {
-  background: "#996600",
-  foreground: "#FFCC00"
-} as const
 
 function draw(buffer: Uint8Array) {
   const canvas = document.getElementById("screen") as HTMLCanvasElement | null;
@@ -59,8 +64,35 @@ function draw(buffer: Uint8Array) {
   ctx.closePath();
 }
 
+window.onkeydown = (event: KeyboardEvent) => {
+  const chipKeyCode = parseInt(event.key, 16)
+  if (!isNaN(chipKeyCode)) {
+    chip.keyPressed = chipKeyCode
+  }
+}
+window.onkeyup = () => {
+  // TODO: may be a bug here if multiple keys are pressed; we might want to keep track of all keys pressed
+  chip.keyPressed = null
+}
+
+function KeyboardHelp() {
+  return (
+    <div>
+      <h2>Keyboard Controls</h2>
+      <ul style={{ listStyle: "none" }}>
+        <li>1 2 3 C</li>
+        <li>4 5 6 D</li>
+        <li>7 8 9 E</li>
+        <li>A 0 B F</li>
+      </ul>
+      <p>The '8', '4', '6', and '2' keys are typically used for directional input.</p>
+    </div>
+  )
+
+}
+
 function App() {
-  const [selectedFileName, setSelectedFileName] = useState("ibm_logo.ch8")
+  const [selectedFileName, setSelectedFileName] = useState(DEFAULT_FILE_NAME)
 
   function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     if (event.target.files === null) {
@@ -86,6 +118,8 @@ function App() {
           <input type="file" accept=".ch8,.c8" onChange={handleFile} style={{ margin: ".4em 0" }} />
         </label>
       </div>
+      <hr />
+      <KeyboardHelp />
     </div>
   )
 }
