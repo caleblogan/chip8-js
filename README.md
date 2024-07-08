@@ -2,6 +2,9 @@
 This is a web based interpreter for the chip 8 VM. The web-client directory contains the react app that handles all ui for the emulator.
 The meat of the chip8 interpreter is in the chip8 directory. 
 
+![screenshot](running-ibm.png)
+
+
 ### Resources used
 - Overview of all opcodes - http://devernay.free.fr/hacks/chip8/C8TECH10.HTM
 - Test Rom - https://github.com/corax89/chip8-test-rom
